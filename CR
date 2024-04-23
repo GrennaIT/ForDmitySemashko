@@ -1,0 +1,17 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.support.ui import Select
+
+
+link = "https://www.citilink.ru/"
+
+try:
+
+    browser: WebDriver = webdriver.Chrome()
+    browser.get(link)
+
+finally:
+    time.sleep(5)
+    browser.quit()
+
