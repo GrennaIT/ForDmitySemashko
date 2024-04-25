@@ -1,17 +1,69 @@
-import time
 from selenium import webdriver
-from selenium.webdriver.chrome.webdriver import WebDriver
-from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from openpyxl import Workbook
+
+# Открываем браузер и переходим на сайт Citilink
+driver = webdriver.Chrome()  # Путь к драйверу Chrome должен быть установлен на вашем компьютере
+driver.get("https://www.citilink.ru/")
+
+# Ждем, пока не загрузится страница и не появится раздел "Бытовая техника"
+wait = WebDriverWait(driver, 10)
+home_appliances_link = wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Бытовая техника")))
+home_appliances_link.click()
 
 
-link = "https://www.citilink.ru/"
+# Функция для сбора данных о товарах и записи их в файл Excel
+def scrape_and_write_to_excel(category_name, subcategory_name, product_name, price, availability):
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Категория", "Подкатегория", "Наименование товара", "Цена", "Наличие"])
+    ws.append([category_name, subcategory_name, product_name, price, availability])
+    wb.save(f"{category_name}_{subcategory_name}.xlsx")
 
-try:
 
-    browser: WebDriver = webdriver.Chrome()
-    browser.get(link)
+# Получаем все подкатегории и последовательно проходим по ним
+subcategories = driver.find_elements(By.XPATH,
+                                     "//div[@class='ProductCategoryGroups__group'][1]//div[@class='ProductCategoryGroup__name']")
+for subcategory in subcategories:
+    subcategory_name = subcategory.text
+    subcategory.click()
 
-finally:
-    time.sleep(5)
-    browser.quit()
+    # Ждем загрузки страницы подкатегории
+    wait.until(EC.presence_of_element_located((By.CLASS_NAME, "CatalogLayout__inner")))
 
+    # Получаем все товары и последовательно проходим по ним
+    products = driver.find_elements(By.XPATH, "//div[@class='ProductCardVertical__name']")
+    for product in products:
+        product_name = product.text
+        product.click()
+
+        # Ждем загрузки страницы товара
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ProductCardLayout__content")))
+
+        # Получаем характеристики товара
+        characteristics = driver.find_elements(By.XPATH,
+                                               "//div[@class='ProductCardLayout__main']//div[@class='ProductCardLayout__infoRow']")
+        characteristics_data = {}
+        for char in characteristics:
+            key = char.find_element(By.XPATH, ".//div[@class='ProductCardLayout__infoKey']").text
+            value = char.find_element(By.XPATH, ".//div[@class='ProductCardLayout__infoValue']").text
+            characteristics_data[key] = value
+
+        # Получаем цену и наличие товара
+        price = driver.find_element(By.XPATH, "//div[@class='Price__value']").text
+        availability = driver.find_element(By.XPATH, "//div[@class='ProductCardLayout__deliveryStatus']").text
+
+        # Записываем данные о товаре в файл Excel
+        scrape_and_write_to_excel("Бытовая техника", subcategory_name, product_name, price, availability)
+
+        # Возвращаемся на страницу подкатегории
+        driver.back()
+
+    # Возвращаемся на страницу категории
+    driver.back()
+
+# Закрываем браузер
+driver.quit()
